@@ -196,9 +196,12 @@ export default function App() {
   };
 
   // Background selection based on screen
-  let bgClass = 'bg-deck-night';
+  let bgClass = 'bg-ocean-clean';
   let ambientMode = 'default';
-  if (screen === 'success') {
+  
+  if (screen === 'landing') {
+    bgClass = 'bg-landing-cinematic';
+  } else if (screen === 'success') {
     bgClass = 'bg-deck-success';
     ambientMode = 'success';
   } else if (screen === 'timeout') {

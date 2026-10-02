@@ -39,8 +39,8 @@ export default function LandingScreen({ onBoardShip, initialCrewName = "" }) {
           </div>
           <div className="landing-title-text">
             <h1 className="landing-main-title">
-              THE LOST TREASURE<br />
-              <span className="of-digital-sea">OF DIGITAL SEA</span>
+              <span className="landing-title-line">THE LOST TREASURE</span>
+              <span className="landing-title-line landing-title-line-2">OF DIGITAL SEA</span>
             </h1>
           </div>
         </div>

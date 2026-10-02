@@ -3,6 +3,7 @@ class SoundEffects {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.clockTickTimer = null;
   }
 
   init() {
@@ -14,6 +15,55 @@ class SoundEffects {
     }
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume();
+    }
+  }
+
+  startClockTick() {
+    try {
+      this.init();
+      if (!this.ctx || this.muted || this.clockTickTimer) return;
+
+      let isTick = true;
+      const tick = () => {
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        // Mechanical clock tick simulation
+        osc.type = 'square';
+        const startFreq = isTick ? 2500 : 2000;
+        osc.frequency.setValueAtTime(startFreq, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.015);
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.06, now + 0.001);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 800;
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.03);
+
+        isTick = !isTick;
+      };
+
+      tick();
+      this.clockTickTimer = setInterval(tick, 1000);
+    } catch (e) {
+      // Ignore audio autoplay fallback issues.
+    }
+  }
+
+  stopClockTick() {
+    if (this.clockTickTimer) {
+      clearInterval(this.clockTickTimer);
+      this.clockTickTimer = null;
     }
   }
 

@@ -36,6 +36,7 @@ export default function GameplayScreen({
 
       if (remaining <= 0) {
         hasFinishedRef.current = true;
+        sound.stopClockTick();
         setSecondsRemaining(0);
         sound.playError();
         onTimeout();
@@ -50,8 +51,23 @@ export default function GameplayScreen({
     // High frequency interval (250ms) to ensure exact zero-point detection
     const interval = setInterval(checkTime, 250);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      sound.stopClockTick();
+    };
   }, [missionStartTime, onTimeout]);
+
+  useEffect(() => {
+    if (secondsRemaining === 30) {
+      sound.startClockTick();
+    } else if (secondsRemaining <= 0) {
+      sound.stopClockTick();
+    }
+  }, [secondsRemaining]);
+
+  useEffect(() => {
+    return () => sound.stopClockTick();
+  }, []);
 
   // Format time as MM:SS
   const formatTime = (totalSeconds) => {
@@ -82,6 +98,7 @@ export default function GameplayScreen({
     if (trimmedInput === targetPassword) {
       // CORRECT PASSWORD!
       hasFinishedRef.current = true;
+      sound.stopClockTick();
       sound.playSuccess();
       const elapsedSeconds = Math.max(1, TOTAL_DURATION_SECONDS - secondsRemaining);
       const formattedElapsed = formatTime(elapsedSeconds);

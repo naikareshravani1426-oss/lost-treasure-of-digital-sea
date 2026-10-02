@@ -32,10 +32,10 @@
   --font-pirate-sub: 'Cinzel', serif;
   --font-pirate-parchment: 'MedievalSharp', cursive, serif;
   --font-pirate-numbers: 'Pirata One', cursive;
-  --font-pirate-body: 'Crimson Text', serif;
+  --font-pirate-body: 'Inter', system-ui, -apple-system, sans-serif;
 
   /* Spacing */
-  --max-content-width: 1440px;
+  --max-content-width: 1366px; /* Updated for 1366x768 fit */
 }
 
 *, *::before, *::after {
