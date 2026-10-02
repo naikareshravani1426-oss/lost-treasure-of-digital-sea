@@ -1,0 +1,168 @@
+/* ==========================================================================
+   THE LOST TREASURE OF DIGITAL SEA - GLOBAL RESET & DESIGN TOKENS
+   TECHNITUDE 2026
+   ========================================================================== */
+
+:root {
+  /* Colors */
+  --color-bg-dark: #070b12;
+  --color-wood-dark: #1e1008;
+  --color-wood-medium: #2e180c;
+  --color-wood-light: #442413;
+  --color-wood-border: #6a3d1c;
+  
+  --color-gold-bright: #ffe680;
+  --color-gold-primary: #d4af37;
+  --color-gold-dark: #8c6a1e;
+  --color-gold-shadow: #4d3807;
+
+  --color-parchment-light: #f7ebd0;
+  --color-parchment-base: #edd4a6;
+  --color-parchment-dark: #cfae70;
+  --color-parchment-burn: #5c3514;
+  --color-ink: #2b180d;
+  --color-ink-muted: #5e3b22;
+
+  --color-pirate-red-light: #b81d1d;
+  --color-pirate-red-base: #8f1111;
+  --color-pirate-red-dark: #570505;
+
+  /* Typography */
+  --font-pirate-title: 'Cinzel Decorative', serif;
+  --font-pirate-sub: 'Cinzel', serif;
+  --font-pirate-parchment: 'MedievalSharp', cursive, serif;
+  --font-pirate-numbers: 'Pirata One', cursive;
+  --font-pirate-body: 'Crimson Text', serif;
+
+  /* Spacing */
+  --max-content-width: 1440px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: var(--color-bg-dark);
+  color: #fff;
+  font-family: var(--font-pirate-body);
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #110904;
+}
+::-webkit-scrollbar-thumb {
+  background: #5a3416;
+  border-radius: 4px;
+  border: 1px solid var(--color-gold-dark);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-primary);
+}
+
+/* Animations */
+@keyframes subtleSway {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(0.4deg) scale(1.002);
+  }
+}
+
+@keyframes lanternFlicker {
+  0%, 100% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 25px rgba(255, 160, 40, 0.45));
+  }
+  25% {
+    opacity: 0.72;
+    filter: drop-shadow(0 0 18px rgba(255, 140, 20, 0.35));
+  }
+  50% {
+    opacity: 0.95;
+    filter: drop-shadow(0 0 32px rgba(255, 180, 60, 0.55));
+  }
+  75% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 22px rgba(255, 150, 30, 0.4));
+  }
+}
+
+@keyframes redWarningPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 15px rgba(255, 30, 30, 0.4), inset 0 0 10px rgba(255, 30, 30, 0.3);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 30px rgba(255, 30, 30, 0.85), inset 0 0 18px rgba(255, 30, 30, 0.6);
+  }
+}
+
+@keyframes goldGlowPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgba(255, 225, 60, 0.85));
+  }
+}
+
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+@keyframes chestRise {
+  0% {
+    transform: translateY(20px) scale(0.97);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes lightBeamPulse {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
