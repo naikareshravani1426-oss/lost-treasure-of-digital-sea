@@ -71,14 +71,11 @@ export default function LeaderboardScreen({ crewName, onReset }) {
       <main className="lb-parchment">
 
         <div className="lb-header" style={{ position: 'relative' }}>
-          {onReset && (
-            <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {crewName && (
+            <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', alignItems: 'center' }}>
               <div className="r2-team-badge" style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.9rem', color: '#fff' }}>
                 TEAM: {crewName}
               </div>
-              <button onClick={onReset} className="pirate-btn pirate-btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} title="Back to Home">
-                🏠 HOME
-              </button>
             </div>
           )}
           <div className="lb-small-badge">⚓ TECHNITUDE 2026 ⚓</div>

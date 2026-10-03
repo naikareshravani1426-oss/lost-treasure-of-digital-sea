@@ -529,16 +529,11 @@ export default function Round2Screen({ crewName, r1PenaltyTime = 0, onComplete, 
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <header className="r2-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <div className="r2-team-badge">
             <Anchor size={15} aria-hidden="true" />
             <span>TEAM: {crewName}</span>
           </div>
-          {onReset && (
-            <button onClick={onReset} className="pirate-btn pirate-btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} title="Back to Home">
-              🏠 HOME
-            </button>
-          )}
         </div>
 
         <div className="r2-header-center">
