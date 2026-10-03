@@ -18,13 +18,9 @@
  * The size-difference check is reliable enough for this use-case.
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect } from 'react';
 
 export function useDisableInspect() {
-  const [devtoolsOpen, setDevtoolsOpen] = useState(false);
-  // Keep a stable ref so the interval callback always has the latest value
-  const devtoolsRef = useRef(false);
-
   useEffect(() => {
     /* ── 1. Block right-click ──────────────────────────────────────────── */
     const handleContextMenu = (e) => {
@@ -71,36 +67,16 @@ export function useDisableInspect() {
     `;
     document.head.appendChild(styleTag);
 
-    /* ── 4. DevTools detection (window-size diff) ───────────────────────── */
-    const THRESHOLD = 160; // px — typical DevTools docked width/height
-    const checkDevTools = () => {
-      const widthDiff  = window.outerWidth  - window.innerWidth  > THRESHOLD;
-      const heightDiff = window.outerHeight - window.innerHeight > THRESHOLD;
-      const detected   = widthDiff || heightDiff;
-
-      if (detected !== devtoolsRef.current) {
-        devtoolsRef.current = detected;
-        setDevtoolsOpen(detected);
-      }
-    };
-
-    /* ── 5. Register listeners ─────────────────────────────────────────── */
+    /* ── 4. Register listeners ─────────────────────────────────────────── */
     window.addEventListener('contextmenu', handleContextMenu, true);
     window.addEventListener('keydown', handleKeyDown, true);
 
-    const intervalId = setInterval(checkDevTools, 1000);
-    // Run once immediately on mount
-    checkDevTools();
-
-    /* ── 6. Cleanup on unmount ─────────────────────────────────────────── */
+    /* ── 5. Cleanup on unmount ─────────────────────────────────────────── */
     return () => {
       window.removeEventListener('contextmenu', handleContextMenu, true);
       window.removeEventListener('keydown', handleKeyDown, true);
-      clearInterval(intervalId);
       const existing = document.getElementById('disable-inspect-styles');
       if (existing) existing.remove();
     };
   }, []);
-
-  return devtoolsOpen;
 }

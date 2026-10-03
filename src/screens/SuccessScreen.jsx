@@ -18,6 +18,7 @@ export default function SuccessScreen({
   attempts    = 0,
   bonus30Used = false,
   onContinue,
+  onReset,
 }) {
   useEffect(() => {
     try {
@@ -41,7 +42,7 @@ export default function SuccessScreen({
 
   return (
     <div className="screen-success-wrapper">
-      <Header crewName={crewName} badgeText="THE FIRST CLUE" />
+      <Header crewName={crewName} badgeText="THE FIRST CLUE" onReset={onReset} />
 
       {/* Banner */}
       <div className="success-banner-container">
@@ -115,13 +116,13 @@ export default function SuccessScreen({
               </div>
               <div className="result-row-divider" />
 
-              {/* Bonus */}
+              {/* Penalty */}
               <div className="result-data-row">
                 <div className="result-row-icon"><Shield size={28} className="res-icon" /></div>
                 <div className="result-row-content">
-                  <div className="result-label">EXTRA 30 SEC</div>
-                  <div className="result-value" style={{ color: bonus30Used ? '#c0392b' : '#27ae60' }}>
-                    {bonus30Used ? 'USED' : 'NOT USED'}
+                  <div className="result-label">PENALTY</div>
+                  <div className="result-value" style={{ color: '#27ae60' }}>
+                    +0 SEC
                   </div>
                 </div>
               </div>

@@ -223,8 +223,10 @@ function TreasureChest({ state }) {
    RESULT MODAL  (matches existing parchment style)
    Used for BOTH success and timeout at end.
 ───────────────────────────────────────────── */
-function ResultModal({ type, crewName, timeTaken, attempts, bonus30Used, onLeaderboard, onHome }) {
+function ResultModal({ type, crewName, timeTaken, attempts, penaltyTime = 0, onLeaderboard, onHome }) {
   const isSuccess = type === 'success';
+  const penaltyLabel = penaltyTime > 0 ? `+${penaltyTime} SEC` : '+0 SEC';
+
   return (
     <div className="r2-modal-screen">
       <motion.div className="r2-modal-content"
@@ -245,7 +247,7 @@ function ResultModal({ type, crewName, timeTaken, attempts, bonus30Used, onLeade
         <div className="modal-stats">
           <div>TIME TAKEN: <strong>{timeTaken}</strong></div>
           <div>ATTEMPTS: <strong>{attempts}</strong></div>
-          <div>EXTRA 30 SEC: <strong>{bonus30Used ? 'USED' : 'NOT USED'}</strong></div>
+          <div>PENALTY: <strong style={{ color: penaltyTime > 0 ? '#b81d1d' : '#27ae60' }}>{penaltyLabel}</strong></div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
@@ -264,7 +266,7 @@ function ResultModal({ type, crewName, timeTaken, attempts, bonus30Used, onLeade
 /* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
-export default function Round2Screen({ crewName, onComplete, onTimeout, onReset }) {
+export default function Round2Screen({ crewName, r1PenaltyTime = 0, onComplete, onTimeout, onReset }) {
   /* ── Phase ──────────────────────────────────────────────── */
   const [phase, setPhase]         = useState('transition'); // transition | playing | result
   const [transitionMsg, setTransitionMsg] = useState('ROUND I COMPLETE');
@@ -274,9 +276,7 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
   const [qIndex, setQIndex] = useState(0);
 
   /* ── Timer ──────────────────────────────────────────────── */
-  const [timeLeft, setTimeLeft]       = useState(INITIAL_TIME);
-  const [bonus30Used, setBonus30Used] = useState(false);
-  const [showBonusToast, setShowBonusToast] = useState(false);
+  const [timeLeft, setTimeLeft]       = useState(INITIAL_TIME); // Strictly 180s (03:00)
 
   /* ── Input ──────────────────────────────────────────────── */
   const [password, setPassword] = useState('');
@@ -290,85 +290,13 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
 
   /* ── Result modal ─────────────────────────────────────────── */
   const [resultType, setResultType] = useState(null); // 'success' | 'timeout'
+  const [cumulativePenalty, setCumulativePenalty] = useState(r1PenaltyTime);
 
   /* ── Refs ───────────────────────────────────────────────── */
   const finishedRef    = useRef(false);
-  const bonus30UsedRef = useRef(false);
   const attemptsRef    = useRef(0);   // mirror for use in timer callback
   const timeLeftRef    = useRef(INITIAL_TIME);
   const inputRef       = useRef(null);
-
-  /* ──────────────────────────────────────────────────────────
-     CINEMATIC TRANSITION  (on mount)
-  ────────────────────────────────────────────────────────── */
-  useEffect(() => {
-    const t1 = setTimeout(() => { sound.playClick(); setTransitionMsg('THE NEXT CURSE AWAITS...'); }, 2000);
-    const t2 = setTimeout(() => { sound.playClick(); setTransitionMsg('ROUND II • THE CURSED CALCULATION'); }, 4000);
-    const t3 = setTimeout(() => { setPhase('playing'); }, 6000);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, []);
-
-  /* ──────────────────────────────────────────────────────────
-     TIMER  (interval, starts when phase = 'playing')
-     Clean single interval — no re-creation between questions.
-  ────────────────────────────────────────────────────────── */
-  useEffect(() => {
-    if (phase !== 'playing') return;
-
-    const id = setInterval(() => {
-      if (finishedRef.current) { clearInterval(id); return; }
-
-      setTimeLeft(prev => {
-        const next = prev - 1;
-        timeLeftRef.current = next;
-
-        if (next < 0) {
-          if (!bonus30UsedRef.current) {
-            // --- First expiry: 30-sec bonus ---
-            bonus30UsedRef.current = true;
-            setBonus30Used(true);
-            setShowBonusToast(true);
-            setTimeout(() => setShowBonusToast(false), 4500);
-            timeLeftRef.current = 30;
-            return 30;
-          } else {
-            // --- Second expiry: timeout ---
-            clearInterval(id);
-            if (!finishedRef.current) {
-              finishedRef.current = true;
-              sound.stopClockTick();
-              sound.playError();
-              const elapsed = INITIAL_TIME + 30; // full 3:30
-              const timeTaken = formatTime(elapsed);
-              saveResult('TIMEOUT', timeTaken);
-              setResultType('timeout');
-              setPhase('result');
-            }
-            return 0;
-          }
-        }
-        return next;
-      });
-    }, 1000);
-
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]); // only (re)start when phase changes to 'playing'
-
-  /* ── Clock tick SFX at ≤10 s ─────────────────────────────── */
-  useEffect(() => {
-    if (timeLeft === WARNING_SECS) {
-      sound.startClockTick();
-    } else if (timeLeft <= 0) {
-      sound.stopClockTick();
-    }
-    // If bonus just reset to 30 s: stop tick until we hit 10 s again
-    if (timeLeft === 30 && bonus30UsedRef.current) {
-      sound.stopClockTick();
-    }
-  }, [timeLeft]);
-
-  useEffect(() => () => sound.stopClockTick(), []);
 
   /* ──────────────────────────────────────────────────────────
      HELPERS
@@ -379,26 +307,18 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
   };
 
   const getElapsedSecs = useCallback(() => {
-    if (bonus30UsedRef.current) {
-      return INITIAL_TIME + (30 - timeLeftRef.current);
-    }
-    return INITIAL_TIME - timeLeftRef.current;
+    return INITIAL_TIME - Math.max(0, timeLeftRef.current);
   }, []);
 
-  const saveResult = useCallback((status, timeTakenStr) => {
+  const saveResult = useCallback((status, timeTakenStr, r2Penalty = 0) => {
     try {
       const round1Time = localStorage.getItem('lost_treasure_completion_time') || '02:00';
       const [rm, rs]   = round1Time.split(':').map(Number);
-      const r1Secs     = rm * 60 + rs;
+      const r1Secs     = (isNaN(rm) ? 2 : rm) * 60 + (isNaN(rs) ? 0 : rs);
 
-      let r2Secs;
-      if (status === 'TIMEOUT') {
-        r2Secs = bonus30UsedRef.current ? INITIAL_TIME + 30 : INITIAL_TIME;
-      } else {
-        r2Secs = getElapsedSecs();
-      }
-
-      const totalSecs = r1Secs + r2Secs;
+      const r2Secs = status === 'TIMEOUT' ? INITIAL_TIME : getElapsedSecs();
+      const totalPenaltySecs = r1PenaltyTime + r2Penalty;
+      const totalSecs = r1Secs + r2Secs + totalPenaltySecs;
 
       const entry = {
         crewName,
@@ -406,7 +326,8 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
         round2Time:  timeTakenStr || formatTime(r2Secs),
         totalTime:   formatTime(totalSecs),
         r2Attempts:  attemptsRef.current,
-        bonus30Used: bonus30UsedRef.current,
+        bonus30Used: totalPenaltySecs > 0,
+        penaltyTime: totalPenaltySecs,
         status,
         totalSeconds: totalSecs,
       };
@@ -423,15 +344,86 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
       localStorage.setItem('lost_treasure_round2_time',     entry.round2Time);
       localStorage.setItem('lost_treasure_round2_attempts', String(attemptsRef.current));
       localStorage.setItem('lost_treasure_round2_status',   status);
+      localStorage.setItem('lost_treasure_penalty_time',     String(totalPenaltySecs));
     } catch (_) {}
-  }, [crewName, getElapsedSecs]);
+  }, [crewName, getElapsedSecs, r1PenaltyTime]);
+
+  /* ──────────────────────────────────────────────────────────
+     CINEMATIC TRANSITION  (on mount)
+  ────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    const t1 = setTimeout(() => {
+      sound.playClick();
+      setTransitionMsg('ROUND II • THE CURSED CALCULATION');
+    }, 600);
+    const t2 = setTimeout(() => {
+      setPhase('playing');
+    }, 1300);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  /* ──────────────────────────────────────────────────────────
+     TIMER  (interval, starts when phase = 'playing')
+     Strictly 03:00 (180s) down to 00:00 (0s).
+  ────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (phase !== 'playing') return;
+
+    const triggerTimeout = () => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      sound.stopClockTick();
+      sound.playError();
+      const timeTaken = '03:00';
+      const finalPenalty = r1PenaltyTime + 30;
+      setCumulativePenalty(finalPenalty);
+      saveResult('TIMEOUT', timeTaken, 30);
+      setResultType('timeout');
+      setPhase('result');
+    };
+
+    const id = setInterval(() => {
+      if (finishedRef.current) {
+        clearInterval(id);
+        return;
+      }
+
+      if (timeLeftRef.current <= 1) {
+        clearInterval(id);
+        timeLeftRef.current = 0;
+        setTimeLeft(0);
+        triggerTimeout();
+        return;
+      }
+
+      setTimeLeft(prev => {
+        const next = Math.max(0, prev - 1);
+        timeLeftRef.current = next;
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, r1PenaltyTime, saveResult]);
+
+  /* ── Clock tick SFX at ≤10 s ─────────────────────────────── */
+  useEffect(() => {
+    if (timeLeft <= WARNING_SECS && timeLeft > 0) {
+      sound.startClockTick();
+    } else if (timeLeft <= 0) {
+      sound.stopClockTick();
+    }
+  }, [timeLeft]);
+
+  useEffect(() => () => sound.stopClockTick(), []);
 
   /* ──────────────────────────────────────────────────────────
      SUBMIT  (plain text comparison — answers from data file)
   ────────────────────────────────────────────────────────── */
   const handleSubmit = useCallback((e) => {
     e && e.preventDefault();
-    if (finishedRef.current || phase !== 'playing' || timeLeftRef.current < 0) return;
+    if (finishedRef.current || phase !== 'playing' || timeLeftRef.current <= 0) return;
 
     const val = password.trim();
     if (!val || val.length < 1) return;
@@ -494,8 +486,11 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
   ────────────────────────────────────────────────────────── */
   if (phase === 'transition') {
     return (
-      <div className="r2-transition-screen">
+      <div className="r2-transition-screen" onClick={() => setPhase('playing')} style={{ cursor: 'pointer' }}>
         <div className="r2-transition-text">{transitionMsg}</div>
+        <div style={{ color: '#c59b4c', marginTop: '16px', fontSize: '0.9rem', letterSpacing: '2px', opacity: 0.8 }}>
+          CLICK ANYWHERE TO BEGIN
+        </div>
       </div>
     );
   }
@@ -504,9 +499,7 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
      RENDER: RESULT MODAL
   ────────────────────────────────────────────────────────── */
   if (phase === 'result') {
-    const elapsed = resultType === 'timeout'
-      ? (bonus30UsedRef.current ? INITIAL_TIME + 30 : INITIAL_TIME)
-      : getElapsedSecs();
+    const elapsed = resultType === 'timeout' ? INITIAL_TIME : getElapsedSecs();
 
     return (
       <ResultModal
@@ -514,7 +507,7 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
         crewName={crewName}
         timeTaken={formatTime(elapsed)}
         attempts={attemptsRef.current}
-        bonus30Used={bonus30UsedRef.current}
+        penaltyTime={cumulativePenalty}
         onLeaderboard={() => onComplete()}
         onHome={() => onReset()}
       />
@@ -525,24 +518,12 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
      RENDER: PLAYING
   ────────────────────────────────────────────────────────── */
   const currentQ  = questions[qIndex];
-  // Warning: last 10 s of CURRENT window only
+  // Warning: last 10 s of countdown
   const isWarning = timeLeft <= WARNING_SECS && timeLeft > 0;
 
   return (
     <div className="r2-layout" style={{ position: 'relative', overflow: 'hidden' }}>
       <GoldParticles />
-
-      {/* Bonus toast */}
-      <AnimatePresence>
-        {showBonusToast && (
-          <motion.div className="r2-bonus-toast"
-            initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -30 }} transition={{ duration: 0.4 }}>
-            ⚓ THE CAPTAIN GRANTS YOU 30 MORE SECONDS!<br/>
-            <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>30 SECONDS ADDED. MAKE THEM COUNT!</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <header className="r2-header">
@@ -653,7 +634,7 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
                     if (val.length <= 3) setPassword(val);
                   }}
                   placeholder="• • •"
-                  disabled={phase !== 'playing' || inputState === 'success'}
+                  disabled={phase !== 'playing' || finishedRef.current || timeLeft <= 0 || inputState === 'success'}
                   className={`r2-password-input ${inputState}`}
                   aria-label="Enter 3-digit password"
                   animate={inputState === 'error' ? { x: [-6, 6, -5, 5, -3, 3, 0] } : {}}
@@ -664,7 +645,7 @@ export default function Round2Screen({ crewName, onComplete, onTimeout, onReset 
 
               <motion.button type="submit"
                 className="pirate-btn pirate-btn-primary r2-unlock-btn"
-                disabled={phase !== 'playing' || password.length < 1 || inputState === 'success'}
+                disabled={phase !== 'playing' || finishedRef.current || timeLeft <= 0 || password.length < 1 || inputState === 'success'}
                 whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                 <Anchor size={16} aria-hidden="true" />
                 UNLOCK THE TREASURE

@@ -12,10 +12,11 @@ import { sound } from '../utils/audio';
 
 export default function TimeoutScreen({
   crewName,
-  completionTime = '02:30',
+  completionTime = '02:00',
   attempts       = 0,
-  bonus30Used    = true,
+  penaltyTime    = 30,
   onContinue,
+  onReset,
 }) {
   const handleContinue = () => {
     sound.playClick();
@@ -24,7 +25,7 @@ export default function TimeoutScreen({
 
   return (
     <div className="screen-timeout-wrapper">
-      <Header crewName={crewName} badgeText="THE FIRST CLUE" />
+      <Header crewName={crewName} badgeText="THE FIRST CLUE" onReset={onReset} />
 
       {/* Banner */}
       <div className="timeout-banner-container">
@@ -33,7 +34,7 @@ export default function TimeoutScreen({
           <h2 className="timeout-banner-title">TIME'S UP, PIRATES!</h2>
           <div className="timeout-banner-subtitle">The treasure remains locked.</div>
           <div className="timeout-banner-subtext">
-            Your crew could not crack the password in time.
+            Your crew did not crack the password in time. A +30s penalty has been recorded!
           </div>
         </div>
       </div>
@@ -70,7 +71,7 @@ export default function TimeoutScreen({
               <div className="result-data-row">
                 <div className="result-row-icon"><Hourglass size={28} className="res-icon" /></div>
                 <div className="result-row-content">
-                  <div className="result-label">TIME TAKEN</div>
+                  <div className="result-label">ROUND 1 TIME</div>
                   <div className="result-value recorded-val-bold">{completionTime}</div>
                 </div>
               </div>
@@ -86,13 +87,13 @@ export default function TimeoutScreen({
               </div>
               <div className="result-row-divider" />
 
-              {/* Bonus */}
+              {/* Penalty */}
               <div className="result-data-row">
                 <div className="result-row-icon"><Shield size={28} className="res-icon penalty-icon-red" /></div>
                 <div className="result-row-content">
-                  <div className="result-label penalty-label-red">EXTRA 30 SEC</div>
+                  <div className="result-label penalty-label-red">PENALTY ADDED</div>
                   <div className="result-value penalty-val-red">
-                    {bonus30Used ? 'USED' : 'NOT USED'}
+                    +{penaltyTime || 30} SEC
                   </div>
                 </div>
               </div>

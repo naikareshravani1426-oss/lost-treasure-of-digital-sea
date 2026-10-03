@@ -101,7 +101,7 @@ export default function LeaderboardScreen({ crewName, onReset }) {
                   <th>CREW</th>
                   <th>ROUND I</th>
                   <th>ROUND II</th>
-                  <th>EXTRA 30 SEC</th>
+                  <th>PENALTY</th>
                   <th>ATTEMPTS</th>
                   <th>TOTAL TIME</th>
                   <th>STATUS</th>
@@ -110,6 +110,11 @@ export default function LeaderboardScreen({ crewName, onReset }) {
               <tbody>
                 {leaderboard.map((entry, index) => {
                   const isCurrent = entry.crewName === crewName;
+                  const penaltySecs = entry.penaltyTime !== undefined
+                    ? entry.penaltyTime
+                    : (entry.bonus30Used ? 30 : 0);
+                  const penaltyStr = penaltySecs > 0 ? `+${penaltySecs}s` : '+0s';
+
                   return (
                     <tr key={index}
                       className={`lb-row ${rankClass(index)} ${isCurrent ? 'is-current' : ''}`}>
@@ -125,7 +130,9 @@ export default function LeaderboardScreen({ crewName, onReset }) {
                       </td>
                       <td>{entry.round1Time || '—'}</td>
                       <td>{entry.round2Time || '—'}</td>
-                      <td>{entry.bonus30Used ? 'USED' : 'NO'}</td>
+                      <td style={{ color: penaltySecs > 0 ? '#ff7979' : '#a8e6cf', fontWeight: 'bold' }}>
+                        {penaltyStr}
+                      </td>
                       <td>{entry.r2Attempts ?? entry.attempts ?? '—'}</td>
                       <td className="lb-total-time">{entry.totalTime || '—'}</td>
                       <td className="lb-status">{statusLabel(entry.status)}</td>

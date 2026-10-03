@@ -137,6 +137,51 @@ export function CompassRose({ size = 32, className = "", opacity = 0.85 }) {
   );
 }
 
+// Vintage Nautical Compass Star for aged parchment clue cards
+export function NauticalCompassStar({ size = 24, className = "", color = "#7a4a22" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+      <defs>
+        <radialGradient id="starCenterGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#8b5220" />
+          <stop offset="100%" stopColor="#3d2008" />
+        </radialGradient>
+      </defs>
+      {/* Outer subtle guide ring */}
+      <circle cx="50" cy="50" r="42" stroke={color} strokeWidth="1.2" strokeDasharray="3 3" opacity="0.5" />
+      <circle cx="50" cy="50" r="32" stroke={color} strokeWidth="1" opacity="0.6" />
+      
+      {/* 4 Cardinal Points */}
+      {/* North */}
+      <polygon points="50,6 50,50 44,46" fill="#8b5220" />
+      <polygon points="50,6 50,50 56,46" fill="#4a2408" />
+      {/* South */}
+      <polygon points="50,94 50,50 56,54" fill="#8b5220" />
+      <polygon points="50,94 50,50 44,54" fill="#4a2408" />
+      {/* East */}
+      <polygon points="94,50 50,50 54,44" fill="#8b5220" />
+      <polygon points="94,50 50,50 54,56" fill="#4a2408" />
+      {/* West */}
+      <polygon points="6,50 50,50 46,56" fill="#8b5220" />
+      <polygon points="6,50 50,50 46,44" fill="#4a2408" />
+      
+      {/* 4 Diagonal Points (shorter) */}
+      <polygon points="78,22 50,50 54,43" fill="#6d3e16" />
+      <polygon points="78,22 50,50 57,48" fill="#381b04" />
+      <polygon points="22,22 50,50 43,46" fill="#6d3e16" />
+      <polygon points="22,22 50,50 47,39" fill="#381b04" />
+      <polygon points="78,78 50,50 57,52" fill="#6d3e16" />
+      <polygon points="78,78 50,50 51,57" fill="#381b04" />
+      <polygon points="22,78 50,50 45,57" fill="#6d3e16" />
+      <polygon points="22,78 50,50 39,51" fill="#381b04" />
+
+      {/* Center Boss */}
+      <circle cx="50" cy="50" r="6" fill="url(#starCenterGrad)" stroke="#2b1404" strokeWidth="1" />
+      <circle cx="50" cy="50" r="2.5" fill="#f4dec0" />
+    </svg>
+  );
+}
+
 // Pirate Ship Galleon Icon
 export function PirateShipIcon({ size = 24, className = "" }) {
   return (

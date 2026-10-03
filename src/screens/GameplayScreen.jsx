@@ -31,9 +31,7 @@ export default function GameplayScreen({
   onTimeout,
   onReset,
 }) {
-  const [timeLeft, setTimeLeft]       = useState(INITIAL_TIME);
-  const [bonus30Used, setBonus30Used] = useState(false);
-  const [showBonusToast, setShowBonusToast] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
 
   /* ── Input / attempt state ─────────────────────────────────── */
   const [enteredPassword, setEnteredPassword] = useState('');
@@ -43,7 +41,6 @@ export default function GameplayScreen({
 
   const inputRef       = useRef(null);
   const finishedRef    = useRef(false);        // guard against double-fire
-  const bonus30UsedRef = useRef(false);        // ref mirror for use inside interval
   const timeLeftRef    = useRef(INITIAL_TIME); // ref mirror so interval has fresh value
 
   /* ──────────────────────────────────────────────────────────────
@@ -59,14 +56,17 @@ export default function GameplayScreen({
       const restored = Math.max(0, INITIAL_TIME - elapsed);
       setTimeLeft(restored);
       timeLeftRef.current = restored;
-      if (restored < 0 && !bonus30UsedRef.current) {
-        // Immediately grant bonus then run from 30
-        bonus30UsedRef.current = true;
-        setBonus30Used(true);
-        setTimeLeft(30);
-        timeLeftRef.current = 30;
-        setShowBonusToast(true);
-        setTimeout(() => setShowBonusToast(false), 4500);
+      if (restored <= 0) {
+        finishedRef.current = true;
+        sound.stopClockTick();
+        sound.playError();
+        onTimeout({
+          timeTaken: '02:00',
+          attempts: attempts,
+          penalty: 30,
+          timedOut: true,
+        });
+        return;
       }
     }
 
@@ -77,33 +77,23 @@ export default function GameplayScreen({
         const next = prev - 1;
         timeLeftRef.current = next;
 
-        if (next < 0) {
-          if (!bonus30UsedRef.current) {
-            // --- First expiry: grant 30-sec bonus ---
-            bonus30UsedRef.current = true;
-            setBonus30Used(true);
-            setShowBonusToast(true);
-            setTimeout(() => setShowBonusToast(false), 4500);
-            timeLeftRef.current = 30;
-            return 30;
-          } else {
-            // --- Second expiry: real timeout ---
-            clearInterval(id);
-            if (!finishedRef.current) {
-              finishedRef.current = true;
-              sound.stopClockTick();
-              sound.playError();
-              // Fire timeout via microtask so state update settles first
-              setTimeout(() => {
-                onTimeout({
-                  timeTaken:   '02:30',
-                  attempts:    attempts,
-                  bonus30Used: true,
-                });
-              }, 0);
-            }
-            return 0;
+        if (next <= 0) {
+          clearInterval(id);
+          if (!finishedRef.current) {
+            finishedRef.current = true;
+            sound.stopClockTick();
+            sound.playError();
+            // Fire timeout via microtask so state update settles first
+            setTimeout(() => {
+              onTimeout({
+                timeTaken:   '02:00',
+                attempts:    attempts,
+                penalty:     30,
+                timedOut:    true,
+              });
+            }, 0);
           }
+          return 0;
         }
         return next;
       });
@@ -113,9 +103,9 @@ export default function GameplayScreen({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // run once on mount
 
-  /* ── Clock tick SFX at ≤30 s and ≤10 s ──────────────────── */
+  /* ── Clock tick SFX at ≤10 s ──────────────────── */
   useEffect(() => {
-    if (timeLeft === 10) {
+    if (timeLeft <= WARNING_SECS && timeLeft > 0) {
       sound.startClockTick();
     } else if (timeLeft <= 0) {
       sound.stopClockTick();
@@ -131,12 +121,7 @@ export default function GameplayScreen({
   };
 
   const getElapsedTime = useCallback(() => {
-    // Time actually consumed
-    if (bonus30UsedRef.current) {
-      // bonus was triggered: elapsed = 120 s + (30 - remaining)
-      return formatTime(INITIAL_TIME + (30 - timeLeftRef.current));
-    }
-    return formatTime(INITIAL_TIME - timeLeftRef.current);
+    return formatTime(INITIAL_TIME - Math.max(0, timeLeftRef.current));
   }, []);
 
   /* ── Submit handler ──────────────────────────────────────────── */
@@ -162,7 +147,8 @@ export default function GameplayScreen({
         timeTaken:   getElapsedTime(),
         password:    target,
         attempts:    attempts,
-        bonus30Used: bonus30UsedRef.current,
+        penalty:     0,
+        timedOut:    false,
       });
     } else {
       sound.playError();
@@ -175,8 +161,7 @@ export default function GameplayScreen({
     }
   };
 
-  /* ── Warning mode: last 10 s of CURRENT window only ─────────── */
-  // After bonus: window is 30 s, so 30–11 is NOT warning; 10–0 IS.
+  /* ── Warning mode: last 10 s ─────────── */
   const isWarning = timeLeft <= WARNING_SECS && timeLeft > 0;
   const isUrgent  = timeLeft <= 30;
 
@@ -184,13 +169,6 @@ export default function GameplayScreen({
 
   return (
     <div className={`screen-gameplay-wrapper ${isUrgent ? 'urgent-atmosphere' : ''}`}>
-
-      {/* Bonus toast */}
-      {showBonusToast && (
-        <div className="r1-bonus-toast">
-          ⚓ THE CAPTAIN GRANTS YOU 30 MORE SECONDS!
-        </div>
-      )}
 
       {/* Header bar */}
       <div className="gameplay-topbar">
