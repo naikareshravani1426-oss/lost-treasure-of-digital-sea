@@ -2972,7 +2972,13 @@
 .r2-transition-screen {
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at center, #1a0f08 0%, #080503 70%, #020202 100%);
+  background-color: #080503;
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6)),
+    url('/assets/images/mission_transition_bg.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3121,19 +3127,24 @@
   width: 100%;
   border-collapse: collapse;
   font-family: var(--font-pirate-body);
+  min-width: 780px;
 }
 
 .lb-table th {
   text-align: left;
   border-bottom: 2px solid #5c3809;
-  padding: 10px;
+  padding: 10px 8px;
   font-family: var(--font-pirate-sub);
   color: #3b1807;
+  font-size: 0.88rem;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .lb-table td {
-  padding: 12px 10px;
+  padding: 12px 8px;
   border-bottom: 1px solid rgba(92,49,13,0.3);
+  font-size: 0.95rem;
 }
 
 .lb-row.rank-1 td {

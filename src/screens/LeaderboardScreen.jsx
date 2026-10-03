@@ -101,7 +101,8 @@ export default function LeaderboardScreen({ crewName, onReset }) {
                   <th>CREW</th>
                   <th>ROUND I</th>
                   <th>ROUND II</th>
-                  <th>PENALTY</th>
+                  <th>ROUND 1 PENALTY (30 SEC)</th>
+                  <th>ROUND 2 PENALTY (30 SEC)</th>
                   <th>ATTEMPTS</th>
                   <th>TOTAL TIME</th>
                   <th>STATUS</th>
@@ -110,10 +111,19 @@ export default function LeaderboardScreen({ crewName, onReset }) {
               <tbody>
                 {leaderboard.map((entry, index) => {
                   const isCurrent = entry.crewName === crewName;
-                  const penaltySecs = entry.penaltyTime !== undefined
-                    ? entry.penaltyTime
-                    : (entry.bonus30Used ? 30 : 0);
-                  const penaltyStr = penaltySecs > 0 ? `+${penaltySecs}s` : '+0s';
+
+                  // Determine Round 1 Penalty (30 sec): YES if timed out / penalty applied, else NO
+                  const hasR1Penalty = entry.round1Penalty !== undefined
+                    ? !!entry.round1Penalty
+                    : (entry.round1Bonus30Used || (entry.status === 'R1_TIMEOUT') || (entry.round1Time === '02:00' && entry.bonus30Used));
+
+                  // Determine Round 2 Penalty (30 sec): YES if timed out / penalty applied in Round 2, else NO
+                  const hasR2Penalty = entry.round2Penalty !== undefined
+                    ? !!entry.round2Penalty
+                    : (entry.status === 'TIMEOUT' || (entry.penaltyTime !== undefined && entry.penaltyTime >= 60) || (!hasR1Penalty && entry.penaltyTime === 30));
+
+                  const r1PenaltyText = hasR1Penalty ? 'YES' : 'NO';
+                  const r2PenaltyText = hasR2Penalty ? 'YES' : 'NO';
 
                   return (
                     <tr key={index}
@@ -130,8 +140,11 @@ export default function LeaderboardScreen({ crewName, onReset }) {
                       </td>
                       <td>{entry.round1Time || '—'}</td>
                       <td>{entry.round2Time || '—'}</td>
-                      <td style={{ color: penaltySecs > 0 ? '#ff7979' : '#a8e6cf', fontWeight: 'bold' }}>
-                        {penaltyStr}
+                      <td style={{ color: hasR1Penalty ? '#ff7979' : '#a8e6cf', fontWeight: 'bold', textAlign: 'center' }}>
+                        {r1PenaltyText}
+                      </td>
+                      <td style={{ color: hasR2Penalty ? '#ff7979' : '#a8e6cf', fontWeight: 'bold', textAlign: 'center' }}>
+                        {r2PenaltyText}
                       </td>
                       <td>{entry.r2Attempts ?? entry.attempts ?? '—'}</td>
                       <td className="lb-total-time">{entry.totalTime || '—'}</td>
