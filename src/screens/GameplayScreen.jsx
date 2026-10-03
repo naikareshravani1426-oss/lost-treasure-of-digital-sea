@@ -1,162 +1,231 @@
-import React, { useState, useEffect, useRef } from 'react';
+/**
+ * GameplayScreen.jsx — Round I: PASSWORD CRACKING
+ *
+ * Timer behaviour (per spec):
+ *   1. Start at 02:00.
+ *   2. When it first hits 00:00 → grant one 30-second bonus (bonus state flips).
+ *      Show non-blocking toast notification.
+ *   3. If timer hits 00:00 AGAIN → call onTimeout() with result data.
+ *   4. If correct password entered at any point → call onSuccess() with result data.
+ *
+ * Warning mode: last 10 s of the CURRENT active countdown (not last 10 of initial).
+ *
+ * Result data shape passed upward:
+ *   { timeTaken: "MM:SS", password: string, attempts: number, bonus30Used: boolean }
+ */
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Header from '../components/Header';
 import { CompassRose, CrossedSwords, SmallSkull, PirateShipIcon } from '../components/OrnateIcons';
 import { Hourglass, AlertCircle } from 'lucide-react';
 import { sound } from '../utils/audio';
+
+const INITIAL_TIME = 120; // 02:00
+const WARNING_SECS = 10;  // last 10 s of CURRENT active window → red
 
 export default function GameplayScreen({
   crewName,
   question,
   missionStartTime,
   onSuccess,
-  onTimeout
+  onTimeout,
+  onReset,
 }) {
-  const TOTAL_DURATION_SECONDS = 120; // 02:00
-  const [secondsRemaining, setSecondsRemaining] = useState(() => {
-    if (!missionStartTime) return TOTAL_DURATION_SECONDS;
-    const elapsed = Math.floor((Date.now() - missionStartTime) / 1000);
-    return Math.max(0, TOTAL_DURATION_SECONDS - elapsed);
-  });
+  const [timeLeft, setTimeLeft]       = useState(INITIAL_TIME);
+  const [bonus30Used, setBonus30Used] = useState(false);
+  const [showBonusToast, setShowBonusToast] = useState(false);
 
+  /* ── Input / attempt state ─────────────────────────────────── */
   const [enteredPassword, setEnteredPassword] = useState('');
-  const [feedbackMsg, setFeedbackMsg] = useState('');
-  const [isInputShaking, setIsInputShaking] = useState(false);
-  const inputRef = useRef(null);
-  const hasFinishedRef = useRef(false);
+  const [feedbackMsg, setFeedbackMsg]         = useState('');
+  const [isInputShaking, setIsInputShaking]   = useState(false);
+  const [attempts, setAttempts]               = useState(0);
 
-  // Real-time Countdown with Refresh Protection
+  const inputRef       = useRef(null);
+  const finishedRef    = useRef(false);        // guard against double-fire
+  const bonus30UsedRef = useRef(false);        // ref mirror for use inside interval
+  const timeLeftRef    = useRef(INITIAL_TIME); // ref mirror so interval has fresh value
+
+  /* ──────────────────────────────────────────────────────────────
+     TIMER  (interval-based; compensates for elapsed if page was
+     refreshed while gameplay was active)
+  ────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    if (hasFinishedRef.current) return;
+    if (finishedRef.current) return;
 
-    const checkTime = () => {
-      if (hasFinishedRef.current) return;
-      const now = Date.now();
-      const elapsed = Math.floor((now - missionStartTime) / 1000);
-      const remaining = TOTAL_DURATION_SECONDS - elapsed;
-
-      if (remaining <= 0) {
-        hasFinishedRef.current = true;
-        sound.stopClockTick();
-        setSecondsRemaining(0);
-        sound.playError();
-        onTimeout();
-      } else {
-        setSecondsRemaining(remaining);
+    // Restore elapsed time from wall-clock if player refreshed mid-game
+    if (missionStartTime) {
+      const elapsed = Math.floor((Date.now() - missionStartTime) / 1000);
+      const restored = Math.max(0, INITIAL_TIME - elapsed);
+      setTimeLeft(restored);
+      timeLeftRef.current = restored;
+      if (restored < 0 && !bonus30UsedRef.current) {
+        // Immediately grant bonus then run from 30
+        bonus30UsedRef.current = true;
+        setBonus30Used(true);
+        setTimeLeft(30);
+        timeLeftRef.current = 30;
+        setShowBonusToast(true);
+        setTimeout(() => setShowBonusToast(false), 4500);
       }
-    };
+    }
 
-    // Immediate check
-    checkTime();
+    const id = setInterval(() => {
+      if (finishedRef.current) { clearInterval(id); return; }
 
-    // High frequency interval (250ms) to ensure exact zero-point detection
-    const interval = setInterval(checkTime, 250);
+      setTimeLeft(prev => {
+        const next = prev - 1;
+        timeLeftRef.current = next;
 
-    return () => {
-      clearInterval(interval);
-      sound.stopClockTick();
-    };
-  }, [missionStartTime, onTimeout]);
+        if (next < 0) {
+          if (!bonus30UsedRef.current) {
+            // --- First expiry: grant 30-sec bonus ---
+            bonus30UsedRef.current = true;
+            setBonus30Used(true);
+            setShowBonusToast(true);
+            setTimeout(() => setShowBonusToast(false), 4500);
+            timeLeftRef.current = 30;
+            return 30;
+          } else {
+            // --- Second expiry: real timeout ---
+            clearInterval(id);
+            if (!finishedRef.current) {
+              finishedRef.current = true;
+              sound.stopClockTick();
+              sound.playError();
+              // Fire timeout via microtask so state update settles first
+              setTimeout(() => {
+                onTimeout({
+                  timeTaken:   '02:30',
+                  attempts:    attempts,
+                  bonus30Used: true,
+                });
+              }, 0);
+            }
+            return 0;
+          }
+        }
+        return next;
+      });
+    }, 1000);
 
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
+
+  /* ── Clock tick SFX at ≤30 s and ≤10 s ──────────────────── */
   useEffect(() => {
-    if (secondsRemaining === 30) {
+    if (timeLeft === 10) {
       sound.startClockTick();
-    } else if (secondsRemaining <= 0) {
+    } else if (timeLeft <= 0) {
       sound.stopClockTick();
     }
-  }, [secondsRemaining]);
+  }, [timeLeft]);
 
-  useEffect(() => {
-    return () => sound.stopClockTick();
-  }, []);
+  useEffect(() => () => sound.stopClockTick(), []);
 
-  // Format time as MM:SS
-  const formatTime = (totalSeconds) => {
-    const clamped = Math.max(0, totalSeconds);
-    const mins = Math.floor(clamped / 60);
-    const secs = clamped % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  /* ── Helpers ────────────────────────────────────────────────── */
+  const formatTime = (s) => {
+    const clamped = Math.max(0, s);
+    return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
   };
 
-  // Dynamic letter count of password (counting letters only)
-  const letterCount = question?.password ? question.password.replace(/[^A-Za-z0-9]/g, '').length : 0;
+  const getElapsedTime = useCallback(() => {
+    // Time actually consumed
+    if (bonus30UsedRef.current) {
+      // bonus was triggered: elapsed = 120 s + (30 - remaining)
+      return formatTime(INITIAL_TIME + (30 - timeLeftRef.current));
+    }
+    return formatTime(INITIAL_TIME - timeLeftRef.current);
+  }, []);
 
-  // Handle password submission
+  /* ── Submit handler ──────────────────────────────────────────── */
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
-    if (secondsRemaining <= 0 || hasFinishedRef.current) return;
+    if (finishedRef.current || timeLeftRef.current < 0) return;
 
-    const trimmedInput = enteredPassword.trim().toUpperCase();
-    if (!trimmedInput) {
-      setFeedbackMsg("Enter a secret password!");
+    const trimmed = enteredPassword.trim().toUpperCase();
+    if (!trimmed) {
+      setFeedbackMsg('Enter a secret password!');
       setIsInputShaking(true);
       setTimeout(() => setIsInputShaking(false), 500);
       return;
     }
 
-    const targetPassword = question?.password?.trim()?.toUpperCase();
+    const target = question?.password?.trim()?.toUpperCase();
 
-    if (trimmedInput === targetPassword) {
-      // CORRECT PASSWORD!
-      hasFinishedRef.current = true;
+    if (trimmed === target) {
+      finishedRef.current = true;
       sound.stopClockTick();
       sound.playSuccess();
-      const elapsedSeconds = Math.max(1, TOTAL_DURATION_SECONDS - secondsRemaining);
-      const formattedElapsed = formatTime(elapsedSeconds);
-      onSuccess(formattedElapsed, targetPassword);
+      onSuccess({
+        timeTaken:   getElapsedTime(),
+        password:    target,
+        attempts:    attempts,
+        bonus30Used: bonus30UsedRef.current,
+      });
     } else {
-      // INCORRECT PASSWORD:
-      // Stay on screen 3, do NOT stop timer, do NOT deduct time, do NOT navigate away!
       sound.playError();
-      setFeedbackMsg("INCORRECT KEY — TRY AGAIN");
+      setAttempts(a => a + 1);
+      setFeedbackMsg('INCORRECT KEY — TRY AGAIN');
       setIsInputShaking(true);
       setTimeout(() => setIsInputShaking(false), 500);
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
+      setEnteredPassword('');
+      inputRef.current?.focus();
     }
   };
 
-  const isUrgent = secondsRemaining <= 30;
+  /* ── Warning mode: last 10 s of CURRENT window only ─────────── */
+  // After bonus: window is 30 s, so 30–11 is NOT warning; 10–0 IS.
+  const isWarning = timeLeft <= WARNING_SECS && timeLeft > 0;
+  const isUrgent  = timeLeft <= 30;
+
+  const letterCount = question?.password ? question.password.replace(/[^A-Za-z0-9]/g, '').length : 0;
 
   return (
     <div className={`screen-gameplay-wrapper ${isUrgent ? 'urgent-atmosphere' : ''}`}>
-      {/* Header bar with countdown in top center */}
-      <div className="gameplay-topbar">
-        <Header crewName={crewName} badgeText="THE FIRST CLUE" />
 
-        {/* Top Center Countdown Plaque */}
+      {/* Bonus toast */}
+      {showBonusToast && (
+        <div className="r1-bonus-toast">
+          ⚓ THE CAPTAIN GRANTS YOU 30 MORE SECONDS!
+        </div>
+      )}
+
+      {/* Header bar */}
+      <div className="gameplay-topbar">
+        <Header crewName={crewName} badgeText="THE FIRST CLUE" onReset={onReset} />
+
+        {/* Countdown plaque */}
         <div className="countdown-plaque-container">
-          <div className={`countdown-wood-plaque ${isUrgent ? 'countdown-urgent-pulse' : ''}`}>
+          <div className={`countdown-wood-plaque ${isWarning ? 'countdown-urgent-pulse' : ''}`}>
             <div className="countdown-label">
-              <Hourglass size={15} className={`hourglass-icon ${isUrgent ? 'hourglass-spinning' : ''}`} />
+              <Hourglass size={15} className={`hourglass-icon ${isWarning ? 'hourglass-spinning' : ''}`} />
               <span>COUNTDOWN</span>
             </div>
-            <div className={`countdown-digits ${isUrgent ? 'digits-red-glow' : ''}`}>
-              {formatTime(secondsRemaining)}
+            <div className={`countdown-digits ${isWarning ? 'digits-red-glow' : ''}`}>
+              {formatTime(timeLeft)}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main 2-Column Desktop Layout */}
+      {/* Main 2-column layout */}
       <main className="gameplay-main-layout">
-        {/* LEFT COLUMN: CLUES */}
+        {/* LEFT: CLUES */}
         <section className="clues-panel-container">
           <div className="wood-panel-frame clues-frame">
             <div className="panel-gold-header">
               <CompassRose size={26} opacity={1} />
               <h2 className="panel-title-text">CLUES</h2>
             </div>
-
             <div className="clues-list">
               {question?.clues?.map((clueText, index) => (
                 <div key={index} className="clue-row-item">
                   <div className="clue-tag-badge">
                     <span>CLUE {index + 1}</span>
                   </div>
-                  <div className="clue-content-text">
-                    {clueText}
-                  </div>
+                  <div className="clue-content-text">{clueText}</div>
                   <div className="clue-star-decor">
                     <CompassRose size={20} opacity={0.3} />
                   </div>
@@ -166,7 +235,7 @@ export default function GameplayScreen({
           </div>
         </section>
 
-        {/* RIGHT COLUMN: CRACK THE CODE */}
+        {/* RIGHT: CRACK THE CODE */}
         <section className="crack-code-panel-container">
           <div className="wood-panel-frame crack-frame">
             <div className="panel-gold-header">
@@ -189,7 +258,6 @@ export default function GameplayScreen({
                 <CompassRose size={34} opacity={0.7} />
               </div>
 
-              {/* Password submission form */}
               <form onSubmit={handleSubmit} className="password-submit-form">
                 <div className={`password-input-box ${isInputShaking ? 'shake-anim' : ''}`}>
                   <input
@@ -205,7 +273,7 @@ export default function GameplayScreen({
                     }}
                     autoComplete="off"
                     autoFocus
-                    disabled={secondsRemaining <= 0}
+                    disabled={timeLeft <= 0 || finishedRef.current}
                   />
                   <SmallSkull size={20} className="input-skull-decor" />
                 </div>
@@ -221,7 +289,7 @@ export default function GameplayScreen({
                   type="submit"
                   id="submit-password-btn"
                   className="pirate-btn pirate-btn-primary submit-key-btn"
-                  disabled={secondsRemaining <= 0}
+                  disabled={timeLeft <= 0 || finishedRef.current}
                 >
                   <PirateShipIcon size={24} className="btn-ship-icon" />
                   <span className="btn-text">SUBMIT YOUR SECRET KEY</span>

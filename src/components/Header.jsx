@@ -2,7 +2,7 @@ import React from 'react';
 import { GoldenHelm, SmallSkull } from './OrnateIcons';
 import { Users } from 'lucide-react';
 
-export default function Header({ crewName = "", badgeText = "PASSWORD BREAKER", showCrewBadge = true }) {
+export default function Header({ crewName = "", badgeText = "PASSWORD BREAKER", showCrewBadge = true, onReset }) {
   return (
     <header className="pirate-header">
       {/* Left Branding Group */}
@@ -33,9 +33,9 @@ export default function Header({ crewName = "", badgeText = "PASSWORD BREAKER", 
         </div>
       </div>
 
-      {/* Right Crew Badge */}
+      {/* Right Crew Badge & Home Button */}
       {showCrewBadge && (
-        <div className="crew-badge-container">
+        <div className="crew-badge-container" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div className="crew-badge">
             <Users className="crew-icon" size={18} />
             <span className="crew-label">CREW :</span>
@@ -43,6 +43,11 @@ export default function Header({ crewName = "", badgeText = "PASSWORD BREAKER", 
               {crewName ? crewName.toUpperCase() : "PIRATES"}
             </span>
           </div>
+          {onReset && (
+            <button onClick={onReset} className="pirate-btn pirate-btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }} title="Back to Home">
+              🏠 HOME
+            </button>
+          )}
         </div>
       )}
     </header>

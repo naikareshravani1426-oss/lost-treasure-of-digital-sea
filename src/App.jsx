@@ -4,114 +4,88 @@ import BriefingScreen from './screens/BriefingScreen';
 import GameplayScreen from './screens/GameplayScreen';
 import SuccessScreen from './screens/SuccessScreen';
 import TimeoutScreen from './screens/TimeoutScreen';
-import Round2PlaceholderScreen from './screens/Round2PlaceholderScreen';
+import Round2Screen from './screens/Round2Screen';
+import LeaderboardScreen from './screens/LeaderboardScreen';
 import AmbientEffects from './components/AmbientEffects';
 import { getNextQuestion } from './utils/questionManager';
+import { useDisableInspect } from './hooks/useDisableInspect';
 
-const STORAGE_KEYS = {
-  SCREEN: 'lost_treasure_current_screen',
-  CREW_NAME: 'lost_treasure_crew_name',
-  QUESTION: 'lost_treasure_current_question',
-  START_TIME: 'lost_treasure_start_time',
+/* ── Persistent keys ──────────────────────────────────────────── */
+const SK = {
+  SCREEN:          'lost_treasure_current_screen',
+  CREW_NAME:       'lost_treasure_crew_name',
+  QUESTION:        'lost_treasure_current_question',
+  START_TIME:      'lost_treasure_start_time',
   COMPLETION_TIME: 'lost_treasure_completion_time',
-  CRACKED_PASSWORD: 'lost_treasure_cracked_password',
-  MISSION_STATUS: 'lost_treasure_status', // 'success' | 'timeout'
+  CRACKED_PW:      'lost_treasure_cracked_password',
+  MISSION_STATUS:  'lost_treasure_status',
+  R1_ATTEMPTS:     'lost_treasure_r1_attempts',
+  R1_BONUS:        'lost_treasure_r1_bonus',
 };
 
+function persist(key, value) {
+  try { localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value)); } catch (_) {}
+}
+function load(key, fallback = null) {
+  try {
+    const v = localStorage.getItem(key);
+    return v !== null ? v : fallback;
+  } catch (_) { return fallback; }
+}
+function remove(key) {
+  try { localStorage.removeItem(key); } catch (_) {}
+}
+
 export default function App() {
-  // Screen state initialization with localStorage restoration
-  const [screen, setScreen] = useState(() => {
-    try {
-      const savedScreen = localStorage.getItem(STORAGE_KEYS.SCREEN);
-      return savedScreen || 'landing';
-    } catch {
-      return 'landing';
-    }
-  });
+  const devtoolsOpen = useDisableInspect();
 
-  const [crewName, setCrewName] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.CREW_NAME) || '';
-    } catch {
-      return '';
-    }
-  });
+  /* ── Screen state ─────────────────────────────────────────── */
+  const [screen, setScreen] = useState(() => load(SK.SCREEN, 'landing'));
 
+  /* ── Crew / game state ─────────────────────────────────────── */
+  const [crewName, setCrewName] = useState(() => load(SK.CREW_NAME, ''));
   const [question, setQuestion] = useState(() => {
-    try {
-      const savedQ = localStorage.getItem(STORAGE_KEYS.QUESTION);
-      return savedQ ? JSON.parse(savedQ) : null;
-    } catch {
-      return null;
-    }
+    const v = load(SK.QUESTION);
+    return v ? JSON.parse(v) : null;
   });
-
   const [missionStartTime, setMissionStartTime] = useState(() => {
-    try {
-      const savedStart = localStorage.getItem(STORAGE_KEYS.START_TIME);
-      return savedStart ? parseInt(savedStart, 10) : null;
-    } catch {
-      return null;
-    }
+    const v = load(SK.START_TIME);
+    return v ? parseInt(v, 10) : null;
   });
 
-  const [completionTime, setCompletionTime] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.COMPLETION_TIME) || '';
-    } catch {
-      return '';
-    }
-  });
+  /* ── Round I results ──────────────────────────────────────── */
+  const [completionTime, setCompletionTime]   = useState(() => load(SK.COMPLETION_TIME, ''));
+  const [crackedPassword, setCrackedPassword] = useState(() => load(SK.CRACKED_PW, ''));
+  const [r1Attempts, setR1Attempts]           = useState(() => parseInt(load(SK.R1_ATTEMPTS, '0'), 10));
+  const [r1Bonus30Used, setR1Bonus30Used]     = useState(() => load(SK.R1_BONUS, 'false') === 'true');
+  const [missionStatus, setMissionStatus]     = useState(() => load(SK.MISSION_STATUS, null));
 
-  const [crackedPassword, setCrackedPassword] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.CRACKED_PASSWORD) || '';
-    } catch {
-      return '';
-    }
-  });
-
-  const [missionStatus, setMissionStatus] = useState(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.MISSION_STATUS) || null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Refresh Protection Evaluation on Mount
+  /* ── Refresh protection: if player refreshed mid-R1 past timer ─ */
   useEffect(() => {
     if (screen === 'gameplay' && missionStartTime) {
       const elapsed = Math.floor((Date.now() - missionStartTime) / 1000);
-      if (elapsed >= 120) {
-        // 120s already passed during refresh! Trigger timeout automatically
-        handleTimeout();
+      // R1 max is 150s (120 + 30 bonus); treat anything ≥ 150s as timeout
+      if (elapsed >= 150) {
+        handleTimeout({ timeTaken: '02:30', attempts: r1Attempts, bonus30Used: true });
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync state helpers to localStorage
-  const updateScreen = (newScreen) => {
-    setScreen(newScreen);
-    try {
-      localStorage.setItem(STORAGE_KEYS.SCREEN, newScreen);
-    } catch (e) {
-      console.error(e);
-    }
+  /* ── Navigation helpers ────────────────────────────────────── */
+  const goTo = (s) => {
+    setScreen(s);
+    persist(SK.SCREEN, s);
   };
 
-  // STEP 1 -> STEP 2: Board the Ship
+  /* ── STEP 1 → 2: Board the Ship ───────────────────────────── */
   const handleBoardShip = (name) => {
     setCrewName(name);
-    try {
-      localStorage.setItem(STORAGE_KEYS.CREW_NAME, name);
-    } catch (e) {
-      console.error(e);
-    }
-    updateScreen('briefing');
+    persist(SK.CREW_NAME, name);
+    goTo('briefing');
   };
 
-  // STEP 2 -> STEP 3: Start Mission 1
+  /* ── STEP 2 → 3: Start Mission (Round I) ──────────────────── */
   const handleStartMission = () => {
     const selectedQ = getNextQuestion();
     const startTime = Date.now();
@@ -121,113 +95,139 @@ export default function App() {
     setMissionStatus(null);
     setCompletionTime('');
     setCrackedPassword('');
+    setR1Attempts(0);
+    setR1Bonus30Used(false);
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.QUESTION, JSON.stringify(selectedQ));
-      localStorage.setItem(STORAGE_KEYS.START_TIME, startTime.toString());
-      localStorage.removeItem(STORAGE_KEYS.COMPLETION_TIME);
-      localStorage.removeItem(STORAGE_KEYS.CRACKED_PASSWORD);
-      localStorage.removeItem(STORAGE_KEYS.MISSION_STATUS);
-    } catch (e) {
-      console.error(e);
-    }
+    persist(SK.QUESTION,  JSON.stringify(selectedQ));
+    persist(SK.START_TIME, String(startTime));
+    remove(SK.COMPLETION_TIME);
+    remove(SK.CRACKED_PW);
+    remove(SK.MISSION_STATUS);
+    remove(SK.R1_ATTEMPTS);
+    remove(SK.R1_BONUS);
 
-    updateScreen('gameplay');
+    goTo('gameplay');
   };
 
-  // STEP 3 -> STEP 4: Success on Correct Password
-  const handleSuccess = (timeTaken, password) => {
+  /* ── STEP 3 → 4: Round I Success ─────────────────────────── */
+  const handleSuccess = ({ timeTaken, password, attempts, bonus30Used }) => {
     setCompletionTime(timeTaken);
     setCrackedPassword(password);
+    setR1Attempts(attempts);
+    setR1Bonus30Used(bonus30Used);
     setMissionStatus('success');
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.COMPLETION_TIME, timeTaken);
-      localStorage.setItem(STORAGE_KEYS.CRACKED_PASSWORD, password);
-      localStorage.setItem(STORAGE_KEYS.MISSION_STATUS, 'success');
-    } catch (e) {
-      console.error(e);
-    }
+    persist(SK.COMPLETION_TIME, timeTaken);
+    persist(SK.CRACKED_PW,      password);
+    persist(SK.R1_ATTEMPTS,     String(attempts));
+    persist(SK.R1_BONUS,        String(bonus30Used));
+    persist(SK.MISSION_STATUS,  'success');
 
-    updateScreen('success');
+    // Also store for leaderboard
+    try {
+      let lb = JSON.parse(localStorage.getItem('lost_treasure_leaderboard') || '[]');
+      lb = lb.filter(e => e.crewName !== crewName);
+      // Partial record — Round 2 will overwrite with full data
+      lb.push({
+        crewName,
+        round1Time: timeTaken,
+        round1Attempts: attempts,
+        round1Bonus30Used: bonus30Used,
+        round2Time: '—',
+        totalTime:  timeTaken,
+        r2Attempts: 0,
+        bonus30Used: bonus30Used,
+        status: 'R1_COMPLETE',
+        totalSeconds: 0,
+      });
+      localStorage.setItem('lost_treasure_leaderboard', JSON.stringify(lb));
+    } catch (_) {}
+
+    goTo('success');
   };
 
-  // STEP 3 -> STEP 5: Timeout at 00:00
-  const handleTimeout = () => {
+  /* ── STEP 3 → 5: Round I Timeout ─────────────────────────── */
+  const handleTimeout = ({ timeTaken, attempts, bonus30Used }) => {
+    const time = timeTaken || '02:30';
+    setCompletionTime(time);
+    setR1Attempts(attempts || 0);
+    setR1Bonus30Used(bonus30Used || true);
     setMissionStatus('timeout');
-    setCompletionTime('02:30'); // 02:00 + 00:30 penalty
+
+    persist(SK.COMPLETION_TIME, time);
+    persist(SK.R1_ATTEMPTS,     String(attempts || 0));
+    persist(SK.R1_BONUS,        String(bonus30Used || true));
+    persist(SK.MISSION_STATUS,  'timeout');
 
     try {
-      localStorage.setItem(STORAGE_KEYS.MISSION_STATUS, 'timeout');
-      localStorage.setItem(STORAGE_KEYS.COMPLETION_TIME, '02:30');
-    } catch (e) {
-      console.error(e);
-    }
+      let lb = JSON.parse(localStorage.getItem('lost_treasure_leaderboard') || '[]');
+      lb = lb.filter(e => e.crewName !== crewName);
+      lb.push({
+        crewName,
+        round1Time: time,
+        round1Attempts: attempts || 0,
+        round1Bonus30Used: true,
+        round2Time: '—',
+        totalTime:  time,
+        r2Attempts: 0,
+        bonus30Used: true,
+        status: 'R1_TIMEOUT',
+        totalSeconds: 0,
+      });
+      localStorage.setItem('lost_treasure_leaderboard', JSON.stringify(lb));
+    } catch (_) {}
 
-    updateScreen('timeout');
+    goTo('timeout');
   };
 
-  // STEP 4/5 -> STEP 6: Continue the Voyage
-  const handleContinueVoyage = () => {
-    updateScreen('round2');
-  };
+  /* ── STEP 4/5 → 6: Continue to Round II ───────────────────── */
+  const handleContinueVoyage = () => goTo('round2');
 
-  // Reset session for a new crew
+  /* ── Reset: return to Home ────────────────────────────────── */
   const handleResetSession = () => {
-    try {
-      localStorage.removeItem(STORAGE_KEYS.SCREEN);
-      localStorage.removeItem(STORAGE_KEYS.CREW_NAME);
-      localStorage.removeItem(STORAGE_KEYS.QUESTION);
-      localStorage.removeItem(STORAGE_KEYS.START_TIME);
-      localStorage.removeItem(STORAGE_KEYS.COMPLETION_TIME);
-      localStorage.removeItem(STORAGE_KEYS.CRACKED_PASSWORD);
-      localStorage.removeItem(STORAGE_KEYS.MISSION_STATUS);
-    } catch (e) {
-      console.error(e);
-    }
+    [SK.SCREEN, SK.CREW_NAME, SK.QUESTION, SK.START_TIME,
+     SK.COMPLETION_TIME, SK.CRACKED_PW, SK.MISSION_STATUS,
+     SK.R1_ATTEMPTS, SK.R1_BONUS].forEach(remove);
 
     setCrewName('');
     setQuestion(null);
     setMissionStartTime(null);
     setCompletionTime('');
     setCrackedPassword('');
+    setR1Attempts(0);
+    setR1Bonus30Used(false);
     setMissionStatus(null);
     setScreen('landing');
   };
 
-  // Background selection based on screen
-  let bgClass = 'bg-ocean-clean';
+  /* ── Background / ambient ─────────────────────────────────── */
+  let bgClass    = 'bg-ocean-clean';
   let ambientMode = 'default';
-  
-  if (screen === 'landing') {
-    bgClass = 'bg-landing-cinematic';
-  } else if (screen === 'success') {
-    bgClass = 'bg-deck-success';
-    ambientMode = 'success';
-  } else if (screen === 'timeout') {
-    bgClass = 'bg-deck-timeout';
-    ambientMode = 'timeout';
-  }
+  if (screen === 'landing')  { bgClass = 'bg-landing-cinematic'; }
+  if (screen === 'success')  { bgClass = 'bg-deck-success';  ambientMode = 'success'; }
+  if (screen === 'timeout')  { bgClass = 'bg-deck-timeout';  ambientMode = 'timeout'; }
 
   return (
     <div className={`app-root-container ${bgClass}`}>
-      {/* Floating particles & flickering lantern glow */}
+
+      {/* DevTools overlay */}
+      {devtoolsOpen && (
+        <div className="devtools-overlay">
+          <h2>🏴☠️ NO PEEKING, MATEY! 🏴☠️</h2>
+          <p>Close the developer tools to continue your voyage.</p>
+        </div>
+      )}
+
       <AmbientEffects mode={ambientMode} />
 
-      {/* Main Content Router */}
       <div className="app-content-wrapper">
+
         {screen === 'landing' && (
-          <LandingScreen
-            initialCrewName={crewName}
-            onBoardShip={handleBoardShip}
-          />
+          <LandingScreen initialCrewName={crewName} onBoardShip={handleBoardShip} />
         )}
 
         {screen === 'briefing' && (
-          <BriefingScreen
-            crewName={crewName}
-            onStartMission={handleStartMission}
-          />
+          <BriefingScreen crewName={crewName} onStartMission={handleStartMission} onReset={handleResetSession} />
         )}
 
         {screen === 'gameplay' && question && (
@@ -237,6 +237,7 @@ export default function App() {
             missionStartTime={missionStartTime}
             onSuccess={handleSuccess}
             onTimeout={handleTimeout}
+            onReset={handleResetSession}
           />
         )}
 
@@ -245,26 +246,40 @@ export default function App() {
             crewName={crewName}
             crackedPassword={crackedPassword}
             completionTime={completionTime}
+            attempts={r1Attempts}
+            bonus30Used={r1Bonus30Used}
             onContinue={handleContinueVoyage}
+            onReset={handleResetSession}
           />
         )}
 
         {screen === 'timeout' && (
           <TimeoutScreen
             crewName={crewName}
+            completionTime={completionTime}
+            attempts={r1Attempts}
+            bonus30Used={r1Bonus30Used}
             onContinue={handleContinueVoyage}
+            onReset={handleResetSession}
           />
         )}
 
         {screen === 'round2' && (
-          <Round2PlaceholderScreen
+          <Round2Screen
             crewName={crewName}
-            status={missionStatus}
-            completionTime={completionTime}
-            crackedPassword={crackedPassword}
+            onComplete={() => goTo('leaderboard')}
+            onTimeout={() => goTo('leaderboard')}
             onReset={handleResetSession}
           />
         )}
+
+        {screen === 'leaderboard' && (
+          <LeaderboardScreen
+            crewName={crewName}
+            onReset={handleResetSession}
+          />
+        )}
+
       </div>
     </div>
   );
